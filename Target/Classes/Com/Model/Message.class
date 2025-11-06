@@ -1,0 +1,181 @@
+// Source code is decompiled from a .class file using FernFlower decompiler.
+package com.example.chat.model;
+
+import com.fasterxml.jackson.annotation.JsonFormat;
+import java.time.LocalDateTime;
+
+public class Message {
+   private String username;
+   private String content;
+   private String type;
+   private String imageData;
+   private String userId;
+   @JsonFormat(
+      pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+   )
+   private LocalDateTime timestamp;
+
+   public Message() {
+   }
+
+   public String getUsername() {
+      return this.username;
+   }
+
+   public String getContent() {
+      return this.content;
+   }
+
+   public String getType() {
+      return this.type;
+   }
+
+   public String getImageData() {
+      return this.imageData;
+   }
+
+   public String getUserId() {
+      return this.userId;
+   }
+
+   public LocalDateTime getTimestamp() {
+      return this.timestamp;
+   }
+
+   public void setUsername(final String username) {
+      this.username = username;
+   }
+
+   public void setContent(final String content) {
+      this.content = content;
+   }
+
+   public void setType(final String type) {
+      this.type = type;
+   }
+
+   public void setImageData(final String imageData) {
+      this.imageData = imageData;
+   }
+
+   public void setUserId(final String userId) {
+      this.userId = userId;
+   }
+
+   @JsonFormat(
+      pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+   )
+   public void setTimestamp(final LocalDateTime timestamp) {
+      this.timestamp = timestamp;
+   }
+
+   public boolean equals(final Object o) {
+      if (o == this) {
+         return true;
+      } else if (!(o instanceof Message)) {
+         return false;
+      } else {
+         Message other = (Message)o;
+         if (!other.canEqual(this)) {
+            return false;
+         } else {
+            Object this$username = this.getUsername();
+            Object other$username = other.getUsername();
+            if (this$username == null) {
+               if (other$username != null) {
+                  return false;
+               }
+            } else if (!this$username.equals(other$username)) {
+               return false;
+            }
+
+            Object this$content = this.getContent();
+            Object other$content = other.getContent();
+            if (this$content == null) {
+               if (other$content != null) {
+                  return false;
+               }
+            } else if (!this$content.equals(other$content)) {
+               return false;
+            }
+
+            Object this$type = this.getType();
+            Object other$type = other.getType();
+            if (this$type == null) {
+               if (other$type != null) {
+                  return false;
+               }
+            } else if (!this$type.equals(other$type)) {
+               return false;
+            }
+
+            label62: {
+               Object this$imageData = this.getImageData();
+               Object other$imageData = other.getImageData();
+               if (this$imageData == null) {
+                  if (other$imageData == null) {
+                     break label62;
+                  }
+               } else if (this$imageData.equals(other$imageData)) {
+                  break label62;
+               }
+
+               return false;
+            }
+
+            label55: {
+               Object this$userId = this.getUserId();
+               Object other$userId = other.getUserId();
+               if (this$userId == null) {
+                  if (other$userId == null) {
+                     break label55;
+                  }
+               } else if (this$userId.equals(other$userId)) {
+                  break label55;
+               }
+
+               return false;
+            }
+
+            Object this$timestamp = this.getTimestamp();
+            Object other$timestamp = other.getTimestamp();
+            if (this$timestamp == null) {
+               if (other$timestamp != null) {
+                  return false;
+               }
+            } else if (!this$timestamp.equals(other$timestamp)) {
+               return false;
+            }
+
+            return true;
+         }
+      }
+   }
+
+   protected boolean canEqual(final Object other) {
+      return other instanceof Message;
+   }
+
+   public int hashCode() {
+      int PRIME = true;
+      int result = 1;
+      Object $username = this.getUsername();
+      result = result * 59 + ($username == null ? 43 : $username.hashCode());
+      Object $content = this.getContent();
+      result = result * 59 + ($content == null ? 43 : $content.hashCode());
+      Object $type = this.getType();
+      result = result * 59 + ($type == null ? 43 : $type.hashCode());
+      Object $imageData = this.getImageData();
+      result = result * 59 + ($imageData == null ? 43 : $imageData.hashCode());
+      Object $userId = this.getUserId();
+      result = result * 59 + ($userId == null ? 43 : $userId.hashCode());
+      Object $timestamp = this.getTimestamp();
+      result = result * 59 + ($timestamp == null ? 43 : $timestamp.hashCode());
+      return result;
+   }
+
+   public String toString() {
+      String var10000 = this.getUsername();
+      return "Message(username=" + var10000 + ", content=" + this.getContent() + ", type=" + this.getType() + ", imageData=" + this.getImageData() + ", userId=" + this.getUserId() + ", timestamp=" + String.valueOf(this.getTimestamp()) + ")";
+   }
+}

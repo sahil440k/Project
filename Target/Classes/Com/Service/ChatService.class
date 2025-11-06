@@ -1,0 +1,109 @@
+// Source code is decompiled from a .class file using FernFlower decompiler.
+package com.example.chat.service;
+
+import com.example.chat.model.Message;
+import com.example.chat.model.User;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Service;
+
+@Service
+public class ChatService {
+   private final SimpMessagingTemplate messagingTemplate;
+   private final List<Message> chatLog = new ArrayList();
+   private final Map<String, User> users = new ConcurrentHashMap();
+   private final String secret = "your-secret-key";
+   private final long expiration = 86400000L;
+
+   public ChatService(SimpMessagingTemplate messagingTemplate) {
+      this.messagingTemplate = messagingTemplate;
+   }
+
+   public ResponseEntity<?> register(User user) {
+      if (this.users.containsKey(user.getUsername())) {
+         return ResponseEntity.badRequest().body("Username already exists");
+      } else {
+         user.setId(this.generateUserId());
+         this.users.put(user.getUsername(), user);
+         Map<String, Object> response = new HashMap();
+         response.put("message", "User registered successfully");
+         response.put("user", user);
+         return ResponseEntity.ok(response);
+      }
+   }
+
+   public ResponseEntity<?> login(User user) {
+      User existingUser = (User)this.users.get(user.getUsername());
+      if (existingUser != null && existingUser.getPassword().equals(user.getPassword())) {
+         String token = this.generateToken(existingUser);
+         Map<String, Object> response = new HashMap();
+         response.put("token", token);
+         response.put("user", existingUser);
+         return ResponseEntity.ok(response);
+      } else {
+         return ResponseEntity.badRequest().body("Invalid username or password");
+      }
+   }
+
+   public List<Message> getMessages(String roomId) {
+      return new ArrayList(this.chatLog);
+   }
+
+   public void handleMessage(Message message) {
+      if (message.getType() != null && message.getType().equals("image") && message.getImageData() != null) {
+         try {
+            if (!message.getImageData().startsWith("data:image/")) {
+               throw new IllegalArgumentException("Invalid image data format");
+            }
+
+            String base64Data = message.getImageData().split(",")[1];
+            Base64.getDecoder().decode(base64Data);
+            int sizeInBytes = base64Data.length() * 3 / 4;
+            if (sizeInBytes > 5242880) {
+               throw new IllegalArgumentException("Image size exceeds 5MB limit");
+            }
+         } catch (Exception var4) {
+            message.setType("text");
+            message.setContent("Error: Invalid image data");
+            message.setImageData((String)null);
+         }
+      }
+
+      if (message.getTimestamp() == null) {
+         message.setTimestamp(LocalDateTime.now());
+      }
+
+      this.chatLog.add(message);
+      this.messagingTemplate.convertAndSend("/topic/messages", message);
+   }
+
+   private String generateUserId() {
+      return "user_" + System.currentTimeMillis();
+   }
+
+   private String generateToken(User user) {
+      return Jwts.builder().setSubject(user.getUsername()).setIssuedAt(new Date()).setExpiration(new Date(System.currentTimeMillis() + 86400000L)).signWith(SignatureAlgorithm.HS512, "your-secret-key").compact();
+   }
+
+   public List<Message> getChatHistory() {
+      return new ArrayList(this.chatLog);
+   }
+
+   public void registerUser(User user) {
+      this.users.put(user.getUsername(), user);
+   }
+
+   public User getUser(String username) {
+      return (User)this.users.get(username);
+   }
+}

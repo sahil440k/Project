@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" data-theme="light">
+<head>
+    <title>Chat Application</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <button id="themeSwitch" class="theme-switch" onclick="toggleTheme()">
+        <i class="fas fa-sun"></i>
+    </button>
+
+    <div class="container">
+        <div id="loginForm" class="mb-4">
+            <h2>Welcome to Chat App</h2>
+            <form id="login">
+                <div class="form-group">
+                    <input type="text" class="form-control" id="username" placeholder="Username" required>
+                </div>
+                <div class="form-group">
+                    <input type="password" class="form-control" id="password" placeholder="Password" required>
+                </div>
+                <div class="text-center">
+                    <button type="submit" class="btn btn-primary">Login</button>
+                    <button type="button" class="btn btn-secondary" onclick="showRegister()">Register</button>
+                </div>
+            </form>
+        </div>
+
+        <div id="registerForm" class="mb-4" style="display: none;">
+            <h2>Create New Account</h2>
+            <form id="register">
+                <div class="form-group">
+                    <input type="text" class="form-control" id="regUsername" placeholder="Username" required>
+                </div>
+                <div class="form-group">
+                    <input type="password" class="form-control" id="regPassword" placeholder="Password" required>
+                </div>
+                <div class="text-center">
+                    <button type="submit" class="btn btn-primary">Register</button>
+                    <button type="button" class="btn btn-secondary" onclick="showLogin()">Back to Login</button>
+                </div>
+            </form>
+        </div>
+
+        <div id="chatContainer" style="display: none;">
+            <h2>Chat Room</h2>
+            <div class="chat-container">
+                <div class="message-list" id="messages">
+                    <h3>Messages</h3>
+                </div>
+                <div class="encrypted-list" id="encryptedMessages">
+                    <h3>Encrypted Messages</h3>
+                </div>
+            </div>
+            <form id="messageForm">
+                <div class="input-group">
+                    <input type="text" class="form-control" id="messageInput" placeholder="Type your message..." required>
+                    <div class="input-group-append">
+                        <button type="button" class="emoji-btn" onclick="toggleEmojiPicker(event)">
+                            <i class="far fa-smile"></i>
+                        </button>
+                        <button type="button" class="image-upload-btn" onclick="document.getElementById('imageInput').click()">
+                            <i class="far fa-image"></i>
+                        </button>
+                        <input type="file" id="imageInput" accept="image/*" style="display: none" onchange="handleImageUpload(event)">
+                        <div class="emoji-picker" id="emojiPicker">
+                            <div class="emoji-picker-header">
+                                <div class="emoji-picker-title">Choose Emoji</div>
+                            </div>
+                            <div class="emoji-categories" id="emojiCategories"></div>
+                            <div class="emoji-grid" id="emojiGrid"></div>
+                        </div>
+                        <button class="btn btn-primary" type="submit">Send</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <script>
+        let currentUser = null;
+        let stompClient = null;
+        let darkMode = localStorage.getItem('darkMode') === 'true';
+
+        function connect() {
+            const socket = new SockJS('/ws');
+            stompClient = Stomp.over(socket);
+            
+            console.log('Attempting to connect to WebSocket...');
+            
+            stompClient.connect({}, function(frame) {
+                console.log('Connected: ' + frame);
+                // Subscribe to the messages topic
+                stompClient.subscribe('/topic/messages', function(message) {
+                    console.log('Received message:', message);
+                    const receivedMessage = JSON.parse(message.body);
+                    console.log('Parsed message:', receivedMessage);
+                    showMessage(receivedMessage);
+                });
+            }, function(error) {
+                console.error('STOMP error:', error);
+            });
+        }
+
+        function formatTime(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function showMessage(message) {
+            console.log('Showing message:', message);
+            const messagesDiv = document.getElementById('messages');
+            const encryptedDiv = document.getElementById('encryptedMessages');
+            
+            // Create message element
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message');
+            messageElement.classList.add(message.userId === currentUser.id ? 'sent' : 'received');
+            
+            const messageContent = document.createElement('div');
+            messageContent.classList.add('message-content');
+            
+            const usernameDiv = document.createElement('div');
+            usernameDiv.classList.add('message-username');
+            usernameDiv.textContent = message.username;
+            
+            const contentDiv = document.createElement('div');
+            
+            if (message.type === 'image') {
+                contentDiv.classList.add('message-image-container');
+                const img = document.createElement('img');
+                img.classList.add('message-image', 'loading');
+                img.onload = function() {
+                    img.classList.remove('loading');
+                };
+                img.src = message.imageData;
+                img.onclick = () => openImageModal(message.imageData);
+                contentDiv.appendChild(img);
+            } else {
+                contentDiv.classList.add('message-text');
+                contentDiv.innerHTML = sanitizeMessage(message.content);
+            }
+            
+            const timeDiv = document.createElement('div');
+            timeDiv.classList.add('message-time');
+            timeDiv.textContent = formatTime(message.timestamp);
+            
+            messageContent.appendChild(usernameDiv);
+            messageContent.appendChild(contentDiv);
+            messageContent.appendChild(timeDiv);
+            messageElement.appendChild(messageContent);
+            
+            // Create encrypted message element
+            const encryptedElement = document.createElement('div');
+            encryptedElement.classList.add('message');
+            encryptedElement.classList.add(message.userId === currentUser.id ? 'sent' : 'received');
+            
+            const encryptedContent = document.createElement('div');
+            encryptedContent.classList.add('message-content');
+            
+            const encryptedUsernameDiv = document.createElement('div');
+            encryptedUsernameDiv.classList.add('message-username');
+            encryptedUsernameDiv.textContent = message.username;
+            
+            const encryptedTextDiv = document.createElement('div');
+            encryptedTextDiv.classList.add('encrypted-text');
+            encryptedTextDiv.textContent = message.type === 'image' ? '[Encrypted Image]' : btoa(message.content);
+            
+            const encryptedTimeDiv = document.createElement('div');
+            encryptedTimeDiv.classList.add('message-time');
+            encryptedTimeDiv.textContent = formatTime(message.timestamp);
+            
+            encryptedContent.appendChild(encryptedUsernameDiv);
+            encryptedContent.appendChild(encryptedTextDiv);
+            encryptedContent.appendChild(encryptedTimeDiv);
+            encryptedElement.appendChild(encryptedContent);
+            
+            messagesDiv.appendChild(messageElement);
+            encryptedDiv.appendChild(encryptedElement);
+            
+            // Scroll to bottom
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            encryptedDiv.scrollTop = encryptedDiv.scrollHeight;
+        }
+
+        // Add this function to sanitize messages
+        function sanitizeMessage(content) {
+            // Create a temporary div
+            const temp = document.createElement('div');
+            // Set the content as text first to escape any HTML
+            temp.textContent = content;
+            // Return the escaped content
+            return temp.innerHTML;
+        }
+
+        function showLogin() {
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('registerForm').style.display = 'none';
+        }
+
+        function showRegister() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('registerForm').style.display = 'block';
+        }
+
+        // Add these functions for handling stored credentials
+        function saveUserCredentials(username, password) {
+            localStorage.setItem('chatUsername', username);
+            localStorage.setItem('chatPassword', password);
+        }
+
+        function getStoredCredentials() {
+            return {
+                username: localStorage.getItem('chatUsername'),
+                password: localStorage.getItem('chatPassword')
+            };
+        }
+
+        function clearStoredCredentials() {
+            localStorage.removeItem('chatUsername');
+            localStorage.removeItem('chatPassword');
+        }
+
+        // Modify the login function
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    currentUser = {
+                        username: username,
+                        id: data.id,
+                        token: data.token
+                    };
+                    saveUserCredentials(username, password); // Save credentials on successful login
+                    document.getElementById('loginForm').style.display = 'none';
+                    document.getElementById('chatContainer').style.display = 'block';
+                    connect();
+                } else {
+                    alert('Login failed. Please check your credentials.');
+                }
+            } catch (error) {
+                console.error('Error during login:', error);
+                alert('An error occurred during login.');
+            }
+        }
+
+        // Add auto-login function
+        async function tryAutoLogin() {
+            const credentials = getStoredCredentials();
+            if (credentials.username && credentials.password) {
+                document.getElementById('username').value = credentials.username;
+                document.getElementById('password').value = credentials.password;
+                await login();
+            }
+        }
+
+        // Add logout function
+        function logout() {
+            clearStoredCredentials();
+            currentUser = null;
+            if (stompClient) {
+                stompClient.disconnect();
+            }
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('chatContainer').style.display = 'none';
+            document.getElementById('messages').innerHTML = '';
+            document.getElementById('encryptedMessages').innerHTML = '';
+        }
+
+        document.getElementById('login').addEventListener('submit', function(e) {
+            e.preventDefault();
+            login();
+        });
+
+        document.getElementById('register').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const username = document.getElementById('regUsername').value;
+            const password = document.getElementById('regPassword').value;
+
+            fetch('/api/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+                currentUser = data.user;
+                document.getElementById('registerForm').style.display = 'none';
+                document.getElementById('chatContainer').style.display = 'block';
+                connect();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Registration failed');
+            });
+        });
+
+        document.getElementById('messageForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const messageInput = document.getElementById('messageInput');
+            const content = messageInput.value.trim();
+
+            if (content && stompClient) {
+                const message = {
+                    username: currentUser.username,
+                    content: content,
+                    userId: currentUser.id,
+                    timestamp: new Date().toISOString()
+                };
+                
+                // Close emoji picker if it's open
+                const picker = document.getElementById('emojiPicker');
+                if (picker.classList.contains('show')) {
+                    picker.classList.remove('show');
+                }
+                
+                console.log('Sending message:', message);
+                // Send message to the server
+                stompClient.send("/app/message", {}, JSON.stringify(message));
+                // Clear the input field
+                messageInput.value = '';
+                messageInput.focus();
+            }
+        });
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            const themeButton = document.querySelector('.theme-switch i');
+            
+            if (html.getAttribute('data-theme') === 'light') {
+                html.setAttribute('data-theme', 'dark');
+                themeButton.classList.remove('fa-sun');
+                themeButton.classList.add('fa-moon');
+            } else {
+                html.setAttribute('data-theme', 'light');
+                themeButton.classList.remove('fa-moon');
+                themeButton.classList.add('fa-sun');
+            }
+        }
+
+        const emojiCategories = {
+            'smileys': {
+                name: 'Smileys',
+                icon: '😊',
+                emojis: ['😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛']
+            },
+            'emotions': {
+                name: 'Emotions',
+                icon: '🥺',
+                emojis: ['😪', '😫', '🥱', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵', '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '😎', '🤓', '🧐']
+            },
+            'gestures': {
+                name: 'Gestures',
+                icon: '👋',
+                emojis: ['👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍']
+            },
+            'hearts': {
+                name: 'Hearts',
+                icon: '❤️',
+                emojis: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍', '💔', '❤️‍🔥', '❤️‍🩹', '💖', '💗', '💓', '💞', '💕', '💝', '💘', '💌']
+            }
+        };
+
+        function initEmojiPicker() {
+            const categoriesContainer = document.getElementById('emojiCategories');
+            const emojiGrid = document.getElementById('emojiGrid');
+            
+            // Clear existing content
+            categoriesContainer.innerHTML = '';
+            emojiGrid.innerHTML = '';
+            
+            // Add categories
+            Object.entries(emojiCategories).forEach(([key, category], index) => {
+                const categoryBtn = document.createElement('div');
+                categoryBtn.className = `emoji-category ${index === 0 ? 'active' : ''}`;
+                categoryBtn.innerHTML = `${category.icon} ${category.name}`;
+                categoryBtn.onclick = () => switchCategory(key);
+                categoriesContainer.appendChild(categoryBtn);
+            });
+            
+            // Show first category by default
+            showCategory(Object.keys(emojiCategories)[0]);
+        }
+
+        function switchCategory(categoryKey) {
+            // Update active state
+            document.querySelectorAll('.emoji-category').forEach(cat => {
+                cat.classList.remove('active');
+                if (cat.innerHTML.includes(emojiCategories[categoryKey].name)) {
+                    cat.classList.add('active');
+                }
+            });
+            
+            showCategory(categoryKey);
+        }
+
+        function showCategory(categoryKey) {
+            const emojiGrid = document.getElementById('emojiGrid');
+            emojiGrid.innerHTML = '';
+            
+            emojiCategories[categoryKey].emojis.forEach(emoji => {
+                const emojiSpan = document.createElement('span');
+                emojiSpan.className = 'emoji-item';
+                emojiSpan.textContent = emoji;
+                emojiSpan.onclick = () => addEmoji(emoji);
+                emojiGrid.appendChild(emojiSpan);
+            });
+        }
+
+        function toggleEmojiPicker(event) {
+            event.preventDefault(); // Prevent form submission
+            const picker = document.getElementById('emojiPicker');
+            
+            if (!picker.classList.contains('show')) {
+                // Initialize emoji picker if not already done
+                initEmojiPicker();
+            }
+            
+            picker.classList.toggle('show');
+        }
+
+        function addEmoji(emoji) {
+            const messageInput = document.getElementById('messageInput');
+            const cursorPos = messageInput.selectionStart;
+            const textBefore = messageInput.value.substring(0, cursorPos);
+            const textAfter = messageInput.value.substring(cursorPos);
+            
+            messageInput.value = textBefore + emoji + textAfter;
+            messageInput.focus();
+            
+            // Set cursor position after the inserted emoji
+            const newCursorPos = cursorPos + emoji.length;
+            messageInput.setSelectionRange(newCursorPos, newCursorPos);
+        }
+
+        // Close emoji picker when clicking outside
+        document.addEventListener('click', function(event) {
+            const picker = document.getElementById('emojiPicker');
+            const emojiBtn = event.target.closest('.emoji-btn');
+            const emojiPicker = event.target.closest('.emoji-picker');
+            
+            if (!emojiBtn && !emojiPicker && picker.classList.contains('show')) {
+                picker.classList.remove('show');
+            }
+        });
+
+        // Initialize emoji picker when document is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            // Update the emoji button to pass the event
+            const emojiBtn = document.querySelector('.emoji-btn');
+            emojiBtn.onclick = function(event) {
+                toggleEmojiPicker(event);
+            };
+
+            // Add logout button to the chat room
+            const chatRoom = document.getElementById('chatContainer');
+            const logoutButton = document.createElement('button');
+            logoutButton.textContent = 'Logout';
+            logoutButton.className = 'logout-button';
+            logoutButton.onclick = logout;
+            chatRoom.insertBefore(logoutButton, chatRoom.firstChild);
+
+            // Try auto-login
+            tryAutoLogin();
+        });
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                // Add loading indicator
+                const loadingMessage = {
+                    username: currentUser.username,
+                    content: 'Uploading image...',
+                    userId: currentUser.id,
+                    timestamp: new Date().toISOString(),
+                    type: 'text'
+                };
+                showMessage(loadingMessage);
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    // Create a temporary image to get dimensions
+                    const img = new Image();
+                    img.onload = function() {
+                        const message = {
+                            username: currentUser.username,
+                            content: '',
+                            userId: currentUser.id,
+                            timestamp: new Date().toISOString(),
+                            type: 'image',
+                            imageData: e.target.result
+                        };
+                        
+                        console.log('Sending image message');
+                        stompClient.send("/app/message", {}, JSON.stringify(message));
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+                
+                // Reset file input
+                event.target.value = '';
+            }
+        }
+
+        function openImageModal(imageUrl) {
+            const modal = document.createElement('div');
+            modal.className = 'image-modal';
+            
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.className = 'modal-image';
+            
+            // Close modal when clicking anywhere
+            modal.onclick = () => document.body.removeChild(modal);
+            
+            // Add loading state
+            img.classList.add('loading');
+            img.onload = function() {
+                img.classList.remove('loading');
+            };
+            
+            modal.appendChild(img);
+            document.body.appendChild(modal);
+        }
+
+        // Add this CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            .logout-button {
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                padding: 8px 16px;
+                background-color: var(--button-bg);
+                color: var(--button-text);
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                transition: background-color 0.3s;
+            }
+            .logout-button:hover {
+                background-color: var(--button-hover);
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html> 
