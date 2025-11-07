@@ -1,0 +1,10 @@
+/workspaces/Project/src/main/java/com/example/chat/Controller/HomeController.java
+/workspaces/Project/src/main/java/com/example/chat/Controller/ChatController.java
+/workspaces/Project/src/main/java/com/example/chat/Service/ChatService.java
+/workspaces/Project/src/main/java/com/example/chat/Model/Message.java
+/workspaces/Project/src/main/java/com/example/chat/ServiceChatApplication.java
+/workspaces/Project/src/main/java/com/example/chat/Config/WebSocketConfig.java
+/workspaces/Project/src/main/java/com/example/chat/Config/WebConfig.java
+/workspaces/Project/src/main/java/com/example/chat/Controller/ChatWebSocketController.java
+/workspaces/Project/src/main/java/com/example/chat/Config/SecurityConfig.java
+/workspaces/Project/src/main/java/com/example/chat/Model/User.java
